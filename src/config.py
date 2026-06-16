@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import json
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -46,6 +47,14 @@ RAW_DIR = DATA_DIR / "raw"
 DATABASE_URL = os.getenv("DATABASE_URL")
 DATABASE_STAGING_SCHEMA = "staging"
 DATABASE_ANALYTICS_SCHEMA = "analytics"
+
+ANALYTICS_TABLE_MAPPINGS = json.loads(
+    (
+        PROJECT_ROOT
+        / "config"
+        / "analytics_table_mappings.json"
+    ).read_text(encoding="utf-8")
+)
 
 
 def find_existing_zip(year: int) -> Path | None:

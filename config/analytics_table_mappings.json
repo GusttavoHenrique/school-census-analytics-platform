@@ -1,0 +1,48 @@
+{
+  "escola": {
+    "target_table": "dim_escola",
+    "columns": {
+      "nu_ano_censo": "ano_censo",
+      "co_entidade": "id_escola",
+      "no_entidade": "nome_escola",
+      "sg_uf": "sigla_uf",
+      "co_municipio": "id_municipio",
+      "no_municipio": "nome_municipio",
+      "tp_dependencia": "id_dependencia_administrativa",
+      "tp_localizacao": "id_localizacao",
+      "in_internet": "possui_internet",
+      "in_biblioteca": "possui_biblioteca",
+      "in_laboratorio_informatica": "possui_laboratorio_informatica",
+      "in_laboratorio_ciencias": "possui_laboratorio_ciencias",
+      "in_agua_potavel": "possui_agua_potavel",
+      "in_energia_rede_publica": "possui_energia_rede_publica"
+    }
+  },
+  "turma": {
+    "target_table": "dim_turma",
+    "columns": {
+      "nu_ano_censo": "ano_censo",
+      "co_turma": "id_turma",
+      "co_entidade": "id_escola",
+      "tp_etapa_ensino": "id_etapa_ensino",
+      "qt_mat_bas": "quantidade_matriculas"
+    }
+  },
+  "docente": {
+    "target_table": "dim_docente",
+    "columns": {
+      "nu_ano_censo": "ano_censo",
+      "co_pessoa_fisica": "id_docente",
+      "co_entidade": "id_escola"
+    }
+  },
+  "matricula": {
+    "target_table": "fato_matricula",
+    "columns": {
+      "nu_ano_censo": "ano_censo",
+      "co_matricula": "id_matricula",
+      "co_entidade": "id_escola",
+      "co_turma": "id_turma"
+    }
+  }
+}
