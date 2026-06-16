@@ -17,7 +17,7 @@ from src.config import (
     RAW_DIR,
     LANDING_DIR,
     DATASET_NAME,
-    DATA_FILE_PATH,
+    DATA_FILE_DIR,
     SELECTED_FILE_KEYWORDS,
 )
 from src.utils import get_table_by_raw_file
@@ -72,10 +72,7 @@ def download_census_zip(year: int) -> Path:
     target_dir = RAW_DIR / DATASET_NAME
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    LOGGER.info(
-        "Downloading School Census ZIP for year %s.",
-        year,
-    )
+    LOGGER.info("Downloading School Census ZIP for year %s.", year)
 
     errors = []
 
@@ -83,10 +80,7 @@ def download_census_zip(year: int) -> Path:
         zip_path = target_dir / Path(zip_url).name
 
         try:
-            LOGGER.info(
-                "Trying download URL: %s",
-                zip_url,
-            )
+            LOGGER.info("Trying download URL: %s", zip_url)
 
             with get_with_ssl_retry(zip_url) as response:
                 response.raise_for_status()
@@ -98,21 +92,14 @@ def download_census_zip(year: int) -> Path:
                         if chunk:
                             file.write(chunk)
 
-            LOGGER.info(
-                "ZIP downloaded successfully: %s",
-                zip_path,
-            )
+            LOGGER.info("ZIP downloaded successfully: %s", zip_path)
 
             return zip_path
 
         except requests.RequestException as error:
             errors.append(f"{zip_url} -> {error}")
 
-            LOGGER.warning(
-                "Failed to download ZIP from %s. Error: %s",
-                zip_url,
-                error,
-            )
+            LOGGER.warning("Failed to download ZIP from %s. Error: %s", zip_url, error)
 
             if zip_path.exists():
                 zip_path.unlink()
@@ -146,22 +133,15 @@ def should_extract_file(target_path: Path, filename: str) -> bool:
 
 
 def find_data_directory(root_path: Path) -> Path:
-    LOGGER.info(
-        "Searching for '%s' directory under %s.",
-        DATA_FILE_PATH,
-        root_path,
-    )
+    LOGGER.info("Searching for '%s' directory under %s.", DATA_FILE_DIR, root_path)
 
     for path in root_path.rglob("*"):
-        if path.is_dir() and path.name.lower() == DATA_FILE_PATH:
-            LOGGER.info(
-                "Data directory found: %s",
-                path,
-            )
+        if path.is_dir() and path.name.lower() == DATA_FILE_DIR:
+            LOGGER.info("Data directory found: %s", path)
             return path
 
     raise FileNotFoundError(
-        f"Could not find a '{DATA_FILE_PATH}' directory under {root_path}"
+        f"Could not find a '{DATA_FILE_DIR}' directory under {root_path}"
     )
 
 
@@ -173,10 +153,7 @@ def extract_selected_csv_files(
     Extracts only the selected CSV files from the ZIP.
     """
 
-    LOGGER.info(
-        "Extracting selected files from ZIP: %s",
-        zip_path,
-    )
+    LOGGER.info("Extracting selected files from ZIP: %s", zip_path)
 
     LANDING_DIR.mkdir(
         parents=True,
@@ -190,7 +167,7 @@ def extract_selected_csv_files(
             path = Path(member)
             filename = path.name
 
-            if DATA_FILE_PATH not in [
+            if DATA_FILE_DIR not in [
                 part.lower()
                 for part in path.parts
             ]:
@@ -221,11 +198,7 @@ def extract_selected_csv_files(
                 exist_ok=True,
             )
 
-            LOGGER.info(
-                "Extracting file: %s -> %s",
-                filename,
-                target_path,
-            )
+            LOGGER.info("Extracting file: %s -> %s", filename, target_path)
 
             with zip_file.open(member) as source:
                 with target_path.open("wb") as target:
@@ -238,10 +211,7 @@ def extract_selected_csv_files(
             "No selected CSV files were found in the ZIP."
         )
 
-    LOGGER.info(
-        "Extraction completed. %s files extracted.",
-        len(extracted_files),
-    )
+    LOGGER.info("Extraction completed. %s files extracted.", len(extracted_files))
 
     return extracted_files
 
@@ -252,10 +222,7 @@ def extract_census_data(year: int) -> list[Path]:
     """
 
     try:
-        LOGGER.info(
-            "Starting extraction pipeline for year %s.",
-            year,
-        )
+        LOGGER.info("Starting extraction pipeline for year %s.", year)
 
         zip_path = download_census_zip(year)
 
@@ -264,16 +231,10 @@ def extract_census_data(year: int) -> list[Path]:
             year,
         )
 
-        LOGGER.info(
-            "Extraction pipeline completed successfully for year %s.",
-            year,
-        )
+        LOGGER.info("Extraction pipeline completed successfully for year %s.", year)
 
         return extracted_files
 
     except Exception:
-        LOGGER.exception(
-            "Error extracting School Census data for year %s.",
-            year,
-        )
+        LOGGER.exception("Error extracting School Census data for year %s.", year)
         raise

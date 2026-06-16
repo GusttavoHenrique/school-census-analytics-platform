@@ -24,8 +24,7 @@ LOGGER = logging.getLogger("school_census")
 
 DATASET_URL = os.getenv("DATASET_URL")
 DATASET_NAME = os.getenv("DATASET_NAME")
-DATA_FILE_PATH = os.getenv("DATA_FILE_PATH")
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATA_FILE_DIR = os.getenv("DATA_FILE_DIR")
 
 SELECTED_FILE_KEYWORDS = [
     re.sub(
@@ -44,6 +43,10 @@ DATA_DIR = PROJECT_ROOT / "data"
 LANDING_DIR = DATA_DIR / "landing"
 RAW_DIR = DATA_DIR / "raw"
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_STAGING_SCHEMA = "staging"
+DATABASE_ANALYTICS_SCHEMA = "analytics"
+
 
 def find_existing_zip(year: int) -> Path | None:
     """
@@ -55,17 +58,10 @@ def find_existing_zip(year: int) -> Path | None:
     )
 
     if matches:
-        LOGGER.info(
-            "ZIP file already exists for year %s: %s",
-            year,
-            matches[0],
-        )
+        LOGGER.info("ZIP file already exists for year %s: %s", year, matches[0])
         return matches[0]
 
-    LOGGER.debug(
-        "No ZIP file found for year %s.",
-        year,
-    )
+    LOGGER.debug("No ZIP file found for year %s.", year)
 
     return None
 
@@ -88,10 +84,6 @@ def build_census_urls(year: int) -> list[str]:
         f"{base_url}_.zip",
     ]
 
-    LOGGER.info(
-        "Built %s possible download URLs for year %s.",
-        len(urls),
-        year,
-    )
+    LOGGER.info("Built %s possible download URLs for year %s.", len(urls), year)
 
     return urls
