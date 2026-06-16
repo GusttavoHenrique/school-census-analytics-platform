@@ -3,10 +3,7 @@ VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
 PIP ?= $(VENV)/bin/pip
 
-# defining last year by default
-ifndef YEAR
-    YEAR := $(shell date +%Y | awk '{print $$1 - 1}')
-endif
+YEAR ?= $(shell date +%Y | awk '{print $$1 - 1}')
 
 venv:
 	$(PYTHON_VERSION) -m venv $(VENV)
@@ -16,6 +13,7 @@ install: venv
 	$(PIP) install -r requirements.txt
 
 run:
+	@test -x $(PYTHON) || (echo "Virtual environment not found. Run: make install" && exit 1)
 	$(PYTHON) -m src.main --year $(YEAR)
 
 clean:
