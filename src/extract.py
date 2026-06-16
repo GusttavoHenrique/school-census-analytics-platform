@@ -15,7 +15,7 @@ from src.config import (
     build_census_urls,
     RAW_DIR,
     LANDING_DIR,
-    DATASET,
+    DATASET_NAME,
     DATA_FILE_PATH,
     SELECTED_FILE_KEYWORDS,
 )
@@ -66,7 +66,7 @@ def download_census_zip(year: int) -> Path:
             f"{existing_zip}"
         )
 
-    target_dir = RAW_DIR / DATASET
+    target_dir = RAW_DIR / DATASET_NAME
     target_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Downloading INEP School Census ZIP for {year}...")
@@ -172,7 +172,7 @@ def extract_selected_csv_files(
             ).lower()
 
             ingestion_timestamp = int(time.time())
-            target_path = LANDING_DIR / DATASET / table_name / str(year) / f"{table_name}_{ingestion_timestamp}.csv"
+            target_path = LANDING_DIR / DATASET_NAME / table_name / str(year) / f"{table_name}_{ingestion_timestamp}.csv"
 
             if not should_extract_file(target_path, filename):
                 continue
@@ -201,9 +201,7 @@ def extract_census_data(year: int) -> list[Path]:
     """
 
     try:
-        # zip_path = download_census_zip(year)
-        zip_path = f"/home/gusttavo/dev/school-census-analytics-platform/data/raw/{DATASET}/{DATASET}_2025_.zip"
-
+        zip_path = download_census_zip(year)
         return extract_selected_csv_files(zip_path, year)
 
     except Exception as error:

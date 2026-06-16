@@ -1,25 +1,34 @@
 import re
+import os
 
+from dotenv import load_dotenv
 from pathlib import Path
+
+load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-DATASET = "microdados_censo_escolar"
-DATA_FILE_PATH = "dados"
+DATASET_URL = os.getenv("DATASET_URL")
+DATASET_NAME = os.getenv("DATASET_NAME")
+DATA_FILE_PATH = os.getenv("DATA_FILE_PATH")
 SELECTED_FILE_KEYWORDS = [
-    re.sub(r"_\d{4}$", "", keyword, flags=re.IGNORECASE).upper()
-    for keyword in [
-        "TABELA_ESCOLA",
-        "tabela_turma",
-        "Tabela_Matricula",
-        "Tabela_Matricula",
-        "Tabela_Docente_2025",
-    ]
+    re.sub(
+        r"_\d{4}$",
+        "",
+        keyword.strip(),
+        flags=re.IGNORECASE,
+    ).upper()
+    for keyword in os.getenv(
+        "SELECTED_FILE_KEYWORDS",
+        ""
+    ).split(",")
 ]
 
 DATA_DIR = PROJECT_ROOT / "data"
 LANDING_DIR = DATA_DIR / "landing"
 RAW_DIR = DATA_DIR / "raw"
+
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 def find_existing_zip(year: int) -> Path | None:
@@ -28,7 +37,7 @@ def find_existing_zip(year: int) -> Path | None:
     """
 
     matches = list(
-        RAW_DIR.glob(f"{DATASET}_{year}*.zip")
+        RAW_DIR.glob(f"{DATASET_NAME}_{year}*.zip")
     )
 
     if matches:
@@ -50,8 +59,7 @@ def build_census_urls(year: int) -> list[str]:
         )
 
     base_url = (
-        f"https://download.inep.gov.br/"
-        f"dados_abertos/{DATASET}_{year}"
+        f"{DATASET_URL}/{DATASET_NAME}_{year}"
     )
 
     return [
