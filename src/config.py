@@ -1,16 +1,32 @@
-import re
+import logging
 import os
+import re
+from pathlib import Path
 
 from dotenv import load_dotenv
-from pathlib import Path
 
 load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+logging.basicConfig(
+    level=logging.INFO,
+    format=(
+        "%(asctime)s | "
+        "%(levelname)s | "
+        "%(name)s | "
+        "%(funcName)s | "
+        "%(message)s"
+    ),
+)
+
+LOGGER = logging.getLogger("school_census")
+
 DATASET_URL = os.getenv("DATASET_URL")
 DATASET_NAME = os.getenv("DATASET_NAME")
 DATA_FILE_PATH = os.getenv("DATA_FILE_PATH")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 SELECTED_FILE_KEYWORDS = [
     re.sub(
         r"_\d{4}$",
@@ -28,12 +44,10 @@ DATA_DIR = PROJECT_ROOT / "data"
 LANDING_DIR = DATA_DIR / "landing"
 RAW_DIR = DATA_DIR / "raw"
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
 
 def find_existing_zip(year: int) -> Path | None:
     """
-    Verify if an especific zip file already exists.
+    Verify if a specific ZIP file already exists.
     """
 
     matches = list(
@@ -41,15 +55,24 @@ def find_existing_zip(year: int) -> Path | None:
     )
 
     if matches:
-        print("A ZIP file already exists for the requested census year.")
-        return matches[0]  
-    
+        LOGGER.info(
+            "ZIP file already exists for year %s: %s",
+            year,
+            matches[0],
+        )
+        return matches[0]
+
+    LOGGER.debug(
+        "No ZIP file found for year %s.",
+        year,
+    )
+
     return None
 
 
 def build_census_urls(year: int) -> list[str]:
     """
-    Build the possible url to file in data portal.
+    Build possible URLs for the School Census ZIP file.
     """
 
     if year < 1995:
@@ -58,11 +81,17 @@ def build_census_urls(year: int) -> list[str]:
             f"Received: {year}"
         )
 
-    base_url = (
-        f"{DATASET_URL}/{DATASET_NAME}_{year}"
-    )
+    base_url = f"{DATASET_URL}/{DATASET_NAME}_{year}"
 
-    return [
+    urls = [
         f"{base_url}.zip",
         f"{base_url}_.zip",
     ]
+
+    LOGGER.info(
+        "Built %s possible download URLs for year %s.",
+        len(urls),
+        year,
+    )
+
+    return urls
