@@ -1,17 +1,21 @@
+import re
+
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+DATASET = "microdados_censo_escolar"
 DATA_FILE_PATH = "dados"
-
 SELECTED_FILE_KEYWORDS = [
-    keyword.upper() for keyword in [
+    re.sub(r"_\d{4}$", "", keyword, flags=re.IGNORECASE).upper()
+    for keyword in [
         "TABELA_ESCOLA",
-        "TABELA_TURMA",
+        "tabela_turma",
+        "Tabela_Matricula",
+        "Tabela_Matricula",
+        "Tabela_Docente_2025",
     ]
 ]
-
-DATASET = "microdados_censo_escolar"
 
 DATA_DIR = PROJECT_ROOT / "data"
 LANDING_DIR = DATA_DIR / "landing"

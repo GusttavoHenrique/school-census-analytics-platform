@@ -122,11 +122,6 @@ def should_extract_file(target_path: Path, filename: str) -> bool:
         flags=re.IGNORECASE,
     ).upper()
 
-    path_exists = target_path.exists()
-
-    if path_exists:
-        print(f"Replacing existing file: {filename}")
-
     return (
         normalized_name.endswith(".CSV")
         and any(
