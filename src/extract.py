@@ -25,8 +25,24 @@ from src.utils import get_table_by_raw_file
 
 def get_with_ssl_retry(url: str) -> Response:
     """
-    Performs an HTTPS request using certificate validation first.
-    If SSL validation fails, retries without certificate verification.
+    Perform an HTTP GET request with SSL fallback support.
+
+    The request is initially executed using certificate
+    validation. If an SSL validation error occurs, the
+    request is retried with certificate verification
+    disabled.
+
+    Args:
+        url:
+            Target URL to be requested.
+
+    Returns:
+        Response:
+            HTTP response returned by the remote server.
+
+    Raises:
+        requests.RequestException:
+            Raised when the request cannot be completed.
     """
 
     try:
@@ -58,7 +74,27 @@ def get_with_ssl_retry(url: str) -> Response:
 
 def download_census_zip(year: int) -> Path:
     """
-    Downloads the School Census ZIP file for a given year.
+    Download the School Census ZIP file for a given year.
+
+    The function attempts all supported URL patterns until
+    a valid file is found and successfully downloaded.
+
+    Args:
+        year:
+            School Census reference year.
+
+    Returns:
+        Path:
+            Local path of the downloaded ZIP file.
+
+    Raises:
+        FileExistsError:
+            Raised when a ZIP file for the requested year
+            already exists locally.
+
+        FileNotFoundError:
+            Raised when none of the candidate URLs contain
+            a valid ZIP file.
     """
 
     existing_zip = find_existing_zip(year)
@@ -113,7 +149,19 @@ def download_census_zip(year: int) -> Path:
 
 def should_extract_file(filename: str) -> bool:
     """
-    Checks whether the file should be extracted.
+    Determine whether a CSV file should be extracted.
+
+    The decision is based on the configured list of
+    selected file keywords.
+
+    Args:
+        filename:
+            File name found inside the ZIP archive.
+
+    Returns:
+        bool:
+            True when the file matches the configured
+            extraction rules. Otherwise False.
     """
 
     normalized_name = re.sub(
@@ -133,6 +181,24 @@ def should_extract_file(filename: str) -> bool:
 
 
 def find_data_directory(root_path: Path) -> Path:
+    """
+    Search recursively for the configured data directory.
+
+    Args:
+        root_path:
+            Root directory used as the starting point
+            for the recursive search.
+
+    Returns:
+        Path:
+            Path of the first matching data directory.
+
+    Raises:
+        FileNotFoundError:
+            Raised when the expected directory cannot
+            be found.
+    """
+
     LOGGER.info("Searching for '%s' directory under %s.", DATA_FILE_DIR, root_path)
 
     for path in root_path.rglob("*"):
@@ -150,7 +216,33 @@ def extract_selected_csv_files(
     year: int,
 ) -> list[Path]:
     """
-    Extracts only the selected CSV files from the ZIP.
+    Extract selected CSV files from a School Census ZIP.
+
+    Only files matching the configured extraction rules
+    are persisted to the landing layer.
+
+    Extracted files are organized by:
+
+    - Dataset
+    - Table
+    - Census year
+    - Ingestion timestamp
+
+    Args:
+        zip_path:
+            Path of the ZIP file to be processed.
+
+        year:
+            School Census reference year.
+
+    Returns:
+        list[Path]:
+            List containing all extracted file paths.
+
+    Raises:
+        FileNotFoundError:
+            Raised when no matching CSV files are found
+            inside the ZIP archive.
     """
 
     LOGGER.info("Extracting selected files from ZIP: %s", zip_path)
@@ -215,7 +307,27 @@ def extract_selected_csv_files(
 
 def extract_census_data(year: int) -> list[Path]:
     """
-    Executes the extraction pipeline.
+    Execute the extraction stage of the pipeline.
+
+    This orchestration function is responsible for:
+
+    1. Downloading the School Census ZIP file.
+    2. Extracting the selected CSV files.
+    3. Persisting files into the landing layer.
+
+    Args:
+        year:
+            School Census reference year.
+
+    Returns:
+        list[Path]:
+            List of extracted files generated during
+            the extraction process.
+
+    Raises:
+        Exception:
+            Re-raises any exception generated during
+            download or extraction after logging it.
     """
 
     try:

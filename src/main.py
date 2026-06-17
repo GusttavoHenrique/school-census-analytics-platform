@@ -10,7 +10,28 @@ from src.database import reset_pipeline_database
 
 def main() -> None:
     """
-    Start the pipeline execution.
+    Execute the complete School Census Analytics pipeline.
+
+    This function orchestrates the end-to-end execution flow:
+    - Parse command-line arguments.
+    - Optionally reset database schemas.
+    - Download and extract School Census files.
+    - Load extracted files into the staging layer.
+    - Execute analytics transformations.
+    - Log execution progress and final status.
+
+    Command-line arguments:
+        --year:
+            School Census year to be processed.
+
+        --reset-db:
+            If provided, resets the managed database schemas
+            before executing the pipeline.
+
+    Raises:
+        SystemExit:
+            Returns exit code 1 when a validation error or
+            unexpected runtime exception occurs.
     """
 
     try:

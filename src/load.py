@@ -8,6 +8,17 @@ from src.utils import get_table_by_landing_file, to_snake_case
 
 
 def create_schema(engine: Engine, schema_name: str) -> None:
+    """
+    Create a database schema if it does not already exist.
+
+    Args:
+        engine:
+            SQLAlchemy engine used to execute the statement.
+
+        schema_name:
+            Name of the schema to be created.
+    """
+
     schema_name = to_snake_case(schema_name)
 
     LOGGER.info("Creating schema if not exists: %s", schema_name)
@@ -19,6 +30,27 @@ def create_schema(engine: Engine, schema_name: str) -> None:
 
 
 def read_csv_header(file_path: Path) -> list[str]:
+    """
+    Read and normalize the header of a CSV file.
+
+    The function reads only the first line of the file,
+    splits columns using the expected semicolon delimiter
+    and converts all column names to snake_case.
+
+    Args:
+        file_path:
+            Path of the CSV file.
+
+    Returns:
+        list[str]:
+            Normalized list of column names.
+
+    Raises:
+        ValueError:
+            Raised when duplicated column names are found
+            after normalization.
+    """
+
     with file_path.open("r", encoding="latin1") as file:
         header = file.readline().strip()
 
@@ -38,6 +70,27 @@ def create_staging_table_if_not_exists(
     schema_name: str,
     table_name: str,
 ) -> None:
+    """
+    Create a staging table based on the CSV header.
+
+    All columns are created as text to preserve source
+    compatibility and avoid type inference issues during
+    the initial ingestion layer.
+
+    Args:
+        engine:
+            SQLAlchemy engine used to execute the statement.
+
+        file_path:
+            Path of the CSV file used to infer table columns.
+
+        schema_name:
+            Target database schema.
+
+        table_name:
+            Target staging table.
+    """
+
     schema_name = to_snake_case(schema_name)
     table_name = to_snake_case(table_name)
 
@@ -66,6 +119,26 @@ def delete_existing_year(
     table_name: str,
     year: int,
 ) -> None:
+    """
+    Delete previously loaded records for a given census year.
+
+    This makes the load idempotent by allowing the same year
+    to be reprocessed without duplicating records.
+
+    Args:
+        engine:
+            SQLAlchemy engine used to execute the statement.
+
+        schema_name:
+            Target database schema.
+
+        table_name:
+            Target staging table.
+
+        year:
+            School Census year to be deleted.
+    """
+
     schema_name = to_snake_case(schema_name)
     table_name = to_snake_case(table_name)
 
@@ -87,6 +160,32 @@ def copy_csv_to_postgres(
     schema_name: str,
     table_name: str,
 ) -> None:
+    """
+    Load a CSV file into PostgreSQL using the native COPY command.
+
+    The function uses the raw database connection exposed by
+    SQLAlchemy to execute PostgreSQL COPY through copy_expert,
+    which is significantly faster than row-by-row inserts.
+
+    Args:
+        engine:
+            SQLAlchemy engine used to access the database.
+
+        file_path:
+            Path of the CSV file to be loaded.
+
+        schema_name:
+            Target database schema.
+
+        table_name:
+            Target staging table.
+
+    Raises:
+        Exception:
+            Re-raises any exception that occurs during the
+            COPY operation after rolling back the transaction.
+    """
+
     schema_name = to_snake_case(schema_name)
     table_name = to_snake_case(table_name)
 
@@ -137,6 +236,30 @@ def load_csv_to_postgres(
     table_name: str,
     year: int,
 ) -> None:
+    """
+    Load a single landing CSV file into the staging layer.
+
+    The load process is idempotent for the selected year:
+    it creates the table if necessary, removes existing
+    records for the year and reloads the file.
+
+    Args:
+        engine:
+            SQLAlchemy engine used to access the database.
+
+        file_path:
+            Path of the landing CSV file.
+
+        schema_name:
+            Target staging schema.
+
+        table_name:
+            Target staging table.
+
+        year:
+            School Census year being loaded.
+    """
+
     schema_name = to_snake_case(schema_name)
     table_name = to_snake_case(table_name)
 
@@ -167,11 +290,40 @@ def load_csv_to_postgres(
 
 
 def get_landing_file_timestamp(file_path: Path) -> int:
+    """
+    Extract the ingestion timestamp from a landing file.
+
+    Args:
+        file_path:
+            Path of the landing file.
+
+    Returns:
+        int:
+            Ingestion timestamp extracted from the file name.
+    """
+
     _, timestamp = get_table_by_landing_file(file_path)
     return timestamp
 
 
 def load_landing_files(year: int) -> None:
+    """
+    Load the latest landing files for a given census year.
+
+    For each table directory under the landing layer, the
+    function selects the most recent file based on the
+    timestamp in the filename and loads it into PostgreSQL.
+
+    Args:
+        year:
+            School Census year to be loaded.
+
+    Raises:
+        FileNotFoundError:
+            Raised when the landing directory does not exist
+            or when no CSV files are found for the requested year.
+    """
+
     landing_root = LANDING_DIR / DATASET_NAME
 
     LOGGER.info("Starting landing load for year %s from path: %s", year, landing_root)

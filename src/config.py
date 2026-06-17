@@ -60,7 +60,19 @@ ANALYTICS_TABLE_MAPPINGS = json.loads(
 
 def find_existing_zip(year: int) -> Path | None:
     """
-    Verify if a specific ZIP file already exists.
+    Search for an existing School Census ZIP file for a given year.
+
+    Args:
+        year:
+            School Census reference year.
+
+    Returns:
+        Path:
+            Path to the existing ZIP file when found.
+
+        None:
+            Returned when no ZIP file exists for the
+            requested year.
     """
 
     matches = list(
@@ -78,7 +90,25 @@ def find_existing_zip(year: int) -> Path | None:
 
 def build_census_urls(year: int) -> list[str]:
     """
-    Build possible URLs for the School Census ZIP file.
+    Build all possible download URLs for a School Census ZIP file.
+
+    The INEP portal may expose files using slightly different
+    naming conventions depending on the publication year.
+    This function generates all supported URL patterns that
+    will be attempted during the download step.
+
+    Args:
+        year:
+            School Census reference year.
+
+    Returns:
+        list[str]:
+            List of candidate URLs for the requested year.
+
+    Raises:
+        ValueError:
+            Raised when the requested year is earlier than
+            the first available School Census dataset.
     """
 
     if year < 1995:
