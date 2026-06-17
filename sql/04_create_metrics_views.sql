@@ -24,7 +24,6 @@ COMMENT ON COLUMN analytics.view_escolas_por_uf_dependencia.sigla_uf IS 'Brazili
 COMMENT ON COLUMN analytics.view_escolas_por_uf_dependencia.dependencia_administrativa IS 'Administrative dependency classification (Federal, State, Municipal or Private).';
 COMMENT ON COLUMN analytics.view_escolas_por_uf_dependencia.quantidade_escolas IS 'Total number of distinct schools.';
 
-
 -- ============================================================================
 -- View: view_escolas_por_uf_localizacao
 --
@@ -48,7 +47,6 @@ COMMENT ON COLUMN analytics.view_escolas_por_uf_localizacao.ano_censo IS 'School
 COMMENT ON COLUMN analytics.view_escolas_por_uf_localizacao.sigla_uf IS 'Brazilian state abbreviation.';
 COMMENT ON COLUMN analytics.view_escolas_por_uf_localizacao.localizacao IS 'School location classification (Urban or Rural).';
 COMMENT ON COLUMN analytics.view_escolas_por_uf_localizacao.quantidade_escolas IS 'Total number of distinct schools.';
-
 
 -- ============================================================================
 -- View: view_percentual_escolas_infraestrutura
@@ -83,7 +81,6 @@ COMMENT ON COLUMN analytics.view_percentual_escolas_infraestrutura.percentual_es
 COMMENT ON COLUMN analytics.view_percentual_escolas_infraestrutura.percentual_escolas_com_agua_potavel IS 'Percentage of schools with drinking water.';
 COMMENT ON COLUMN analytics.view_percentual_escolas_infraestrutura.percentual_escolas_com_energia_rede_publica IS 'Percentage of schools connected to the public electricity grid.';
 
-
 -- ============================================================================
 -- View: view_turmas_por_escola_uf
 --
@@ -96,9 +93,9 @@ CREATE VIEW analytics.view_turmas_por_escola_uf AS
 SELECT
     e.ano_censo,
     e.sigla_uf,
-    COUNT(*) AS quantidade_turmas,
+    SUM(t.quantidade_turmas::numeric) AS quantidade_turmas,
     COUNT(DISTINCT e.id_escola) AS quantidade_escolas,
-    ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT e.id_escola), 0), 2) AS media_turmas_por_escola
+    ROUND(SUM(t.quantidade_turmas::numeric) / NULLIF(COUNT(DISTINCT e.id_escola), 0), 2) AS media_turmas_por_escola
 FROM analytics.dim_turma t
 JOIN analytics.dim_escola e ON (t.id_escola = e.id_escola AND t.ano_censo = e.ano_censo)
 GROUP BY e.ano_censo, e.sigla_uf;
@@ -106,10 +103,9 @@ GROUP BY e.ano_censo, e.sigla_uf;
 COMMENT ON VIEW analytics.view_turmas_por_escola_uf IS 'Class volume and average classes per school grouped by census year and state.';
 COMMENT ON COLUMN analytics.view_turmas_por_escola_uf.ano_censo IS 'School Census reference year.';
 COMMENT ON COLUMN analytics.view_turmas_por_escola_uf.sigla_uf IS 'Brazilian state abbreviation.';
-COMMENT ON COLUMN analytics.view_turmas_por_escola_uf.quantidade_turmas IS 'Total number of classes.';
+COMMENT ON COLUMN analytics.view_turmas_por_escola_uf.quantidade_turmas IS 'Total number of basic education classes.';
 COMMENT ON COLUMN analytics.view_turmas_por_escola_uf.quantidade_escolas IS 'Total number of distinct schools.';
 COMMENT ON COLUMN analytics.view_turmas_por_escola_uf.media_turmas_por_escola IS 'Average number of classes per school.';
-
 
 -- ============================================================================
 -- View: view_matriculas_por_uf_dependencia
@@ -124,7 +120,7 @@ SELECT
     e.ano_censo,
     e.sigla_uf,
     d.dependencia_administrativa,
-    COUNT(*) AS quantidade_matriculas
+    SUM(m.quantidade_matriculas::numeric) AS quantidade_matriculas
 FROM analytics.fato_matricula m
 JOIN analytics.dim_escola e ON (m.id_escola = e.id_escola AND m.ano_censo = e.ano_censo)
 LEFT JOIN analytics.dim_dependencia_administrativa d ON (e.id_dependencia_administrativa = d.id_dependencia_administrativa)
@@ -134,8 +130,7 @@ COMMENT ON VIEW analytics.view_matriculas_por_uf_dependencia IS 'Enrollment volu
 COMMENT ON COLUMN analytics.view_matriculas_por_uf_dependencia.ano_censo IS 'School Census reference year.';
 COMMENT ON COLUMN analytics.view_matriculas_por_uf_dependencia.sigla_uf IS 'Brazilian state abbreviation.';
 COMMENT ON COLUMN analytics.view_matriculas_por_uf_dependencia.dependencia_administrativa IS 'Administrative dependency classification (Federal, State, Municipal or Private).';
-COMMENT ON COLUMN analytics.view_matriculas_por_uf_dependencia.quantidade_matriculas IS 'Total number of enrollments.';
-
+COMMENT ON COLUMN analytics.view_matriculas_por_uf_dependencia.quantidade_matriculas IS 'Total number of basic education enrollments.';
 
 -- ============================================================================
 -- View: view_razao_alunos_por_turma
@@ -150,7 +145,7 @@ WITH matriculas_por_uf AS (
     SELECT
         e.ano_censo,
         e.sigla_uf,
-        COUNT(*) AS quantidade_matriculas
+        SUM(m.quantidade_matriculas::numeric) AS quantidade_matriculas
     FROM analytics.fato_matricula m
     JOIN analytics.dim_escola e ON (m.id_escola = e.id_escola AND m.ano_censo = e.ano_censo)
     GROUP BY e.ano_censo, e.sigla_uf
@@ -159,7 +154,7 @@ turmas_por_uf AS (
     SELECT
         e.ano_censo,
         e.sigla_uf,
-        COUNT(*) AS quantidade_turmas
+        SUM(t.quantidade_turmas::numeric) AS quantidade_turmas
     FROM analytics.dim_turma t
     JOIN analytics.dim_escola e ON (t.id_escola = e.id_escola AND t.ano_censo = e.ano_censo)
     GROUP BY e.ano_censo, e.sigla_uf
@@ -169,13 +164,13 @@ SELECT
     m.sigla_uf,
     m.quantidade_matriculas,
     t.quantidade_turmas,
-    ROUND(m.quantidade_matriculas::numeric / NULLIF(t.quantidade_turmas, 0), 2) AS razao_alunos_por_turma
+    ROUND(m.quantidade_matriculas / NULLIF(t.quantidade_turmas, 0), 2) AS razao_alunos_por_turma
 FROM matriculas_por_uf m
 JOIN turmas_por_uf t ON (m.ano_censo = t.ano_censo AND m.sigla_uf = t.sigla_uf);
 
 COMMENT ON VIEW analytics.view_razao_alunos_por_turma IS 'Student-to-class ratio grouped by census year and state.';
 COMMENT ON COLUMN analytics.view_razao_alunos_por_turma.ano_censo IS 'School Census reference year.';
 COMMENT ON COLUMN analytics.view_razao_alunos_por_turma.sigla_uf IS 'Brazilian state abbreviation.';
-COMMENT ON COLUMN analytics.view_razao_alunos_por_turma.quantidade_matriculas IS 'Total number of enrollments.';
-COMMENT ON COLUMN analytics.view_razao_alunos_por_turma.quantidade_turmas IS 'Total number of classes.';
-COMMENT ON COLUMN analytics.view_razao_alunos_por_turma.razao_alunos_por_turma IS 'Average number of students per class.';
+COMMENT ON COLUMN analytics.view_razao_alunos_por_turma.quantidade_matriculas IS 'Total number of basic education enrollments.';
+COMMENT ON COLUMN analytics.view_razao_alunos_por_turma.quantidade_turmas IS 'Total number of basic education classes.';
+COMMENT ON COLUMN analytics.view_razao_alunos_por_turma.razao_alunos_por_turma IS 'Average number of students per class.'

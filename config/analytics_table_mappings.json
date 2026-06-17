@@ -19,14 +19,6 @@
       "in_energia_rede_publica": "possui_energia_rede_publica"
     }
   },
-  "turma": {
-    "target_table": "dim_turma",
-    "year": "nu_ano_censo",
-    "columns": {
-      "nu_ano_censo": "ano_censo",
-      "co_entidade": "id_escola"
-    }
-  },
   "docente": {
     "target_table": "dim_docente",
     "year": "nu_ano_censo",
@@ -35,12 +27,22 @@
       "co_entidade": "id_escola"
     }
   },
+  "turma": {
+    "target_table": "dim_turma",
+    "year": "nu_ano_censo",
+    "columns": {
+      "nu_ano_censo": "ano_censo",
+      "co_entidade": "id_escola",
+      "qt_tur_bas": "quantidade_turmas"
+    }
+  },
   "matricula": {
     "target_table": "fato_matricula",
     "year": "nu_ano_censo",
     "columns": {
       "nu_ano_censo": "ano_censo",
-      "co_entidade": "id_escola"
+      "co_entidade": "id_escola",
+      "qt_mat_bas": "quantidade_matriculas"
     }
   }
 }
