@@ -1,25 +1,29 @@
 # School Census Analytics Platform
 
-This repository contains the end-to-end data pipeline developed to automate the ingestion, processing, and analytical modeling of the Brazilian School Census Microdata provided by INEP.
+This repository contains the end-to-end data pipeline developed to automate the ingestion, processing, and analytical modeling of the Brazilian School Census Microdata published by INEP.
+
+The solution was designed as a metadata-driven, one-shot pipeline capable of downloading, extracting, loading, and transforming raw census data into analytical structures optimized for reporting and business intelligence use cases.
 
 ---
 
 ## 1. Problem Context & Scope
 
 ### The Engineering Challenges
-The School Census is the primary statistical research vehicle for basic education in Brazil. However, consuming its raw datasets in a production environment introduces several well-known friction points:
-* **Distribution Format:** Data is delivered in massive ZIP archives with nested and inconsistent directory structures that change from year to year.
-* **Legacy Layouts:** Raw CSV files utilize non-standard semicolons (`;`) as delimiters.
-* **Character Encoding:** Text data is natively encoded in `Latin-1` (ISO-8859-1), requiring proper handling to avoid character corruption inside the database.
-* **Data Modeling:** The source tables are heavily normalized but contain thousands of unindexed sparse columns, making them highly inefficient for direct analytical queries.
+The Brazilian School Census is the primary statistical research vehicle for basic education in Brazil. While the data is publicly available, consuming it in a production-grade environment introduces several engineering challenges:
+* **Distribution Format:** Data is delivered through large ZIP archives containing nested and inconsistent directory structures that vary between years.
+* **Legacy Layouts:** Source CSV files utilize non-standard semicolons (`;`) instead of commas as delimiters.
+* **Character Encoding:** Files are encoded natively using `Latin-1` (ISO-8859-1), requiring special handling during ingestion to prevent text corruption.
+* **Complex Data Models:** The raw datasets contain thousands of unindexed sparse attributes spread across multiple entities, making direct analytical consumption highly inefficient.
+* **Large Volumes:** Loading large CSV files through traditional row-by-row or database-abstracted insertion methods creates significant network and memory performance bottlenecks.
 
 ### Objective & Implemented Solution
-The goal was to build a unified **one-shot** pipeline in Python and SQL that handles this entire lifecycle via a single terminal execution:
-1. Downloads source data directly from the INEP portal (with automated fallback mechanisms to handle network instabilities).
-2. Extracts and isolates the specific files defined within the project scope.
-3. Standardizes data types, encodings, and nomenclatures to match database conventions.
-4. Loads the raw records into a PostgreSQL instance using high-throughput ingestion strategies.
-5. Executes SQL transformations to consolidate a Star Schema dimensional model tailored for BI consumption.
+The goal of this challenge was to build a unified, automated data pipeline capable of handling the entire lifecycle of School Census data through a single execution context:
+1. Download raw data directly from the INEP portal (with automated fallback clients to handle network instabilities).
+2. Extract and isolate only the specific files required by the challenge scope.
+3. Standardize file paths, table schemas, and column naming conventions.
+4. Load raw records into a cloud PostgreSQL cluster using high-throughput ingestion strategies.
+5. Transform staging data into highly optimized Star Schema dimensional models.
+6. Materialize analytics views to dynamically compute educational infrastructure and operational metrics requested by the challenge.
 
 ---
 
@@ -27,229 +31,509 @@ The goal was to build a unified **one-shot** pipeline in Python and SQL that han
 
 | Component | Technology | Application in the Project |
 | :--- | :--- | :--- |
-| **Language** | Python 3.10+ | Core pipeline orchestration, programmatic download, and file parsing |
-| **Database** | PostgreSQL | Storage engine for staging tables and the analytical data warehouse |
-| **DB Infrastructure**| Neon / Supabase | Serverless cloud-managed PostgreSQL instance |
-| **Transformation** | SQL | Dimensional modeling scripts, analytics views, and metrics aggregates |
-| **Version Control** | Git / GitHub | Code management, configuration tracking, and schema versioning |
-| **Local Ingestion** | Requests / ZipFile | Automated HTTP file streaming and selective disk decompression |
-| **Drivers / ORM** | Psycopg2 / SQLAlchemy | Connection pool management and transactional boundary control |
-| **Bulk Load Engine**| `copy_expert` (COPY) | High-throughput streaming of raw CSV data directly into Postgres |
-| **Data Processing** | Pandas / Regex (`re`) | Basic metadata schema checks and string cleaning/parsing via Regex |
-| **Configuration** | JSON / Dotenv | Declarative column-to-table mappings and secure credential management |
+| **Language** | Python 3.10+ | Core pipeline orchestration, extraction, ingestion, and execution flows |
+| **Database** | PostgreSQL | Storage engine for staging schemas and the analytical data warehouse |
+| **Cloud Database** | Neon / Supabase | Serverless managed PostgreSQL cloud infrastructure |
+| **Transformations** | SQL | Analytics modeling, relational joins, and metric view generation |
+| **Version Control** | Git / GitHub | Source code management, configuration history, and schema tracking |
+| **HTTP Client** | Requests | Automated programmatic download of remote census source files |
+| **Compression** | ZipFile | Low-level streaming decompression and file filtering of archives |
+| **Database Access** | SQLAlchemy | Connection pool management, engine abstraction, and transaction control |
+| **Bulk Load Engine**| PostgreSQL COPY | High-performance streaming of raw CSV arrays directly into database memory |
+| **Data Processing** | Regex (`re`) / JSON | Metadata extraction, string normalization, and declarative column mappings |
+| **Configuration** | Dotenv / JSON | Environment configuration variables and metadata-driven transformations |
 
 ---
 
-## 3. Data Architecture & Design Decisions
+## 3. Project Structure
+
+```text
+school-census-analytics-platform/
+│
+├── config/
+│   └── analytics_table_mappings.json
+│
+├── data/
+│   ├── landing/
+│   │   └── microdados_censo_escolar/
+│   │       ├── docente/
+│   │       │   └── 2025/
+│   │       │       ├── docente_1781640066.csv
+│   │       │       └── docente_1781643135.csv
+│   │       ├── escola/
+│   │       ├── matricula/
+│   │       └── turma/
+│   └── raw/
+│       └── microdados_censo_escolar/
+│           └── microdados_censo_escolar_2025_zip
+│
+├── docs/
+│   └── dicionário_dados_educação_básica.xlsx
+│
+├── sql/
+│   ├── 01_create_static_dimensions.sql
+│   ├── 02_create_analytics_table.sql
+│   ├── 03_load_analytics_table.sql
+│   └── 04_create_metrics_views.sql
+│
+├── src/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── database.py
+│   ├── extract.py
+│   ├── load.py
+│   ├── main.py
+│   ├── sql_render.py
+│   ├── transform.py
+│   └── utils.py
+│
+├── .env
+├── .gitignore
+├── .neon
+├── Makefile
+├── README.md
+└── requirements.txt
+
+```
+
+### File Responsibilities
+
+#### Configuration
+
+* `config/analytics_table_mappings.json`: Declarative, metadata-driven mapping between source schemas and analytical destination targets.
+* `src/config.py`: Centralized configuration manager handling loggers, database target schemas, and safe environment variable injection.
+
+#### Extraction
+
+* `src/extract.py`: Manages network download streams, low-level ZIP decompression, file pattern filtering, and storage mapping.
+
+#### Database
+
+* `src/database.py`: Handles low-level database connection lifecycle management, raw DDL/DML script executions, and schema truncation logic.
+
+#### Loading
+
+* `src/load.py`: Orchestrates runtime database-side target staging table initialization and high-throughput bulk insertions.
+
+#### Transformations
+
+* `src/transform.py`: Coordinates analytics table updates and triggers dimensional warehousing queries.
+* `src/sql_render.py`: Handles file-system SQL template tracking, parameter injections, and query rendering.
+
+#### Utilities
+
+* `src/utils.py`: String normalization helpers, regex parsing engines, and schema metadata extractors.
+
+#### SQL Templates
+
+* `sql/01_create_static_dimensions.sql`: Establishes static dimension constraints and lookups.
+* `sql/02_create_analytics_table.sql`: Generates analytics schema structures, facts, and dimensional targets.
+* `sql/03_load_analytics_table.sql`: Maps, transforms, and loads staging records into analytics structures.
+* `sql/04_create_metrics_views.sql`: Materializes semantic layers for BI reporting toolsets.
+
+#### Documentation
+
+* `docs/dicionário_dados_educação_básica.xlsx`: Official INEP data dictionary referenced during modeling and transformation phases.
+
+---
+
+## 4. Data Architecture & Design Decisions
 
 ### Data Flow
 
 ```text
-       ┌────────────────────────┐
-       │      INEP Portal       │
-       └───────────┬────────────┘
-                   │  (Automated HTTPS Stream)
-                   ▼
-       ┌────────────────────────┐
-       │       RAW Layer        │ -> Ephemeral ZIP file (purged post-extraction)
-       └───────────┬────────────┘
-                   │  (ZipFile Extraction & Filtering)
-                   ▼
-       ┌────────────────────────┐
-       │     LANDING Layer      │ -> Local CSV persistence with Unix Timestamps
-       └───────────┬────────────┘
-                   │  (Streaming via Postgres COPY)
-                   ▼
-       ┌────────────────────────┐
-       │     STAGING Layer      │ -> Clean tables inside Postgres (Schema: staging)
-       └───────────┬────────────┘
-                   │  (SQL Transformations / Dimensional Modeling)
-                   ▼
-       ┌────────────────────────┐
-       │    ANALYTICS Layer     │ -> Fact & Dimension tables (Schema: analytics)
-       └────────────────────────┘
+INEP Portal
+    │
+    ▼
+[ DATA LAKE SIMULATION ]
+├── RAW Layer (data/raw/)
+└── LANDING Layer (data/landing/)
+    │
+    ▼
+[ DATA WAREHOUSE SIMULATION ]
+├── STAGING Schema (PostgreSQL)
+└── ANALYTICS Schema (PostgreSQL)
+    │
+    ▼
+Analytics Views
+    │
+    ▼
+BI / SQL Consumers
+(DBeaver, Metabase, Superset, Power BI, etc.)
 
 ```
 
 ---
 
-### Layer Breakdown
+### Architectural Design & Paradigm Simulation
+
+An intentional architectural choice was made to structure the project as a mini modern ecosystem, simulating corporate big data environments within a single project volume:
+
+* **Data Lake Simulation (File System Layer):** The physical file system separation under the `data/` path functions as a simplified Data Lake. The `raw/` directory acts as the unstructured ingest core, while the `landing/` directory maps to a processed file repository.
+* **Data Warehouse Simulation (Database Layer):** The implementation of logical PostgreSQL schemas (`staging` and `analytics`) reflects a traditional corporate Data Warehouse lifecycle. Staging provides raw, standardized landing schemas, while Analytics hosts production-ready dimensional abstractions.
+
+---
+
+### Layer Details
 
 #### Raw Layer
 
-Acts as the landing zone for the raw `.zip` asset downloaded from INEP.
+Acts as the physical ingestion point for the original multi-gigabyte compressed `.zip` matrix extracted from INEP.
 
-* **Design Decision:** To optimize local disk space and prevent storage overhead, **the original ZIP archive is treated as an ephemeral asset and completely deleted immediately after the target files are extracted**.
+* **Design Decision & Data Lifecycle:** Unlike transient systems that delete temporary network components dynamically, the pipeline explicitly preserves the downloaded ZIP container under `data/raw/` to avoid unnecessary network overhead and re-downloads during local code debugging. **The files are kept structurally intact until a subsequent execution triggers a full replacement (overwrite) with a newer ZIP package.**
 
 #### Landing Layer
 
-Because the Raw layer is ephemeral, data versioning and auditing live here. The extracted CSV files are organized by entity and reference year:
+The landing repository manages structured file auditing and local storage persistence.
 
 ```text
-landing/microdados_censo_escolar/escola/2025/
+data/landing/microdados_censo_escolar/docente/2025/
 
 ```
 
-* **Versioning Strategy:** Rather than overwriting data, **every extraction run saves a new table-specific CSV file appended with a unique Unix timestamp suffix** (e.g., `escola_1781632440.csv`). This approach ensures idempotence and provides a clean file-based audit trail without the risk of overlapping previous executions.
+* **Design Decision:** Rather than overwriting existing datasets, **every extraction run writes a new table-specific CSV file suffixed with a unique Unix timestamp** (e.g., `docente_1781640066.csv`). This approach maintains strict file-level idempotence, facilitates auditing, and supports clean historical backfills on local volumes.
+* **Testing Scope:** Pipeline validation and end-to-end integration tests were performed specifically using the **2025** data structure.
 
-#### Staging Layer (Database)
+#### Staging Layer
 
-This layer handles initial schema definition inside the PostgreSQL instance under the `staging` schema.
+Implemented as a PostgreSQL schema named `staging`. It acts as an internal reflection of the source files while standardizing structure and text properties.
 
-* **Case Standardization:** All column titles and table identifiers are programmatically mutated to `lowercase snake_case` (e.g., `CO_ENTIDADE` is parsed into `co_entidade`).
-* **Regex Integration:** Regular expressions are used to sanitize file path strings, extract timestamps from execution logs, and clean invalid characters from headers prior to schema injection.
-* **Overcoming Ingestion Bottlenecks:** Initial prototypes relying on Pandas iterative loops or standard `.to_sql()` blocks faced significant latency and memory overhead on larger tables. The solution was refactored to use `psycopg2`'s lower-level interface, opening a high-throughput stream utilizing PostgreSQL's native `COPY` command:
+* **Case Standardization:** All column headers and table identifiers are systematically converted to `lowercase snake_case` (e.g., `CO_ENTIDADE` is mutated into `co_entidade`).
+* **High-Performance Ingestion & Re-run Safeguards:** To overcome the heavy memory consumption and network latency inherent in Pandas `.to_sql()` loops, ingestion uses the `psycopg2` driver interface to stream raw data files directly into database memory via PostgreSQL's native `COPY` framework:
 ```python
-cursor.copy_expert("COPY staging.escola FROM STDIN WITH CSV DELIMITER ';' ENCODING 'latin1'", file_object)
-
+cursor.copy_expert("COPY staging.escola FROM stdin WITH CSV DELIMITER ';' ENCODING 'latin1'", file_object)
 ```
 
 
-This shift minimized the application memory footprint and cut the load time down to a few seconds.
+This shift minimizes the application memory footprint and cuts data ingestion down to a few seconds. **To completely prevent data duplication during pipeline re-runs, the database execution model executes a full purge of the target year's existing staging data before streaming the new payload. This ensures that re-triggering the same year completely overwrites and recreates the tables cleanly.**
 
-#### Analytics Layer (Data Warehouse)
+#### Metadata-Driven Architecture (`analytics_table_mappings.json`)
 
-This layer transforms staging data into an optimized Star Schema model designed to simplify query writing for downstream BI tools.
+The mapping strategy between the source datasets and the target models was decoupled into a declarative JSON configuration file (`analytics_table_mappings.json`).
 
-* **Dimensions Built:** `dim_escola`, `dim_docente`, `dim_turma`, `dim_dependencia_administrativa`, `dim_localizacao`.
-* **Fact Table:** `fato_matricula`.
-* **Surrogate Keys (`sk_`):** All analytical entities are joined using auto-incrementing identity keys (`GENERATED ALWAYS AS IDENTITY`). Overriding the source operational natural keys (like `co_entidade`) decouples the data warehouse from brittle upstream conventions, isolates the schema from unexpected layout changes, and lays the groundwork for *Slowly Changing Dimensions* (SCD Type 2).
+* **Design Decision & Benefits:** Instead of hardcoding column aliases and structural selections inside the Python orchestration files or manual DDL definitions, the pipeline implements a **metadata-driven pattern**. This abstracts and simplifies the table normalization process, significantly reducing code duplication (boilerplate) across different data domains.
+* **Impact on Scalability:** This abstraction isolates schema handling into a clean configuration contract. As a result, adding new entities, adapting to upstream layout variations, or altering structural business logic does not require code changes in the core extraction or loading scripts, keeping the codebase lean, decoupled, and easy to maintain.
+
+
+#### Analytics Layer
+
+Implemented as a PostgreSQL schema named `analytics`. This layer strips out operational complexity, exposing a denormalized Star Schema optimized for high-performance BI reporting.
+
+* **Dimensions:** `dim_escola`, `dim_docente`, `dim_turma`, `dim_dependencia_administrativa`, `dim_localizacao`.
+* **Facts:** `fato_matricula`.
+* **Surrogate Key Strategy:** All analytical tables receive a surrogate key (`sk_*`) generated using PostgreSQL identity columns. Overriding the source operational natural keys (like `co_entidade`) decouples the data warehouse from brittle upstream conventions, prevents reporting breaks during structural source updates, and lays the groundwork for *Slowly Changing Dimensions* (SCD Type 2).
+* **SQL Template Strategy:** Core business transformations are decoupled from Python code and maintained entirely within standalone, parameterized SQL scripts. This division of concerns improves script readability, simplifies long-term query maintenance, and mimics dbt-like modeling principles.
+
+#### Analytics Views
+
+After the analytical dimensional tables are populated, the pipeline automatically generates a set of SQL views responsible for exposing the exact business metrics requested by the challenge text.
+
+These views encapsulate complex multi-table metrics aggregation logic and provide a simplified, pre-joined user interface for final data consumption without requiring end users to understand the underlying dimensional layouts. The views are created automatically at the tail end of the workflow through the execution of the `04_create_metrics_views.sql` script.
+
+##### Implemented Views
+
+| View Name | Purpose / Output Metric |
+| --- | --- |
+| `view_escolas_por_uf_dependencia` | Total number of schools segmented by federative state (UF) and administrative dependency (Federal, State, Municipal, Private) |
+| `view_escolas_por_uf_localizacao` | Total number of schools broken down by state (UF) and geographic location zone (Urban / Rural) |
+| `view_percentual_escolas_infraestrutura` | Operational infrastructure coverage indicators tracking ratios for water, electricity, internet access, science labs, libraries, and accessibility configurations |
+| `view_turmas_por_escola_uf` | Total classroom volume and calculated averages of class sizes per school grouped across state (UF) lines |
+| `view_matriculas_por_uf_dependencia` | Total student enrollment records by state (UF) and administrative dependency group |
+| `view_razao_alunos_por_turma` | Operational student-to-class size ratio evaluation matrices across states |
+
+##### Querying the Results
+
+Once the pipeline execution finishes, all analytical tables and views become immediately available in the PostgreSQL database. Any standard SQL client can be used to explore the results, including:
+
+* DBeaver
+* DataGrip
+* pgAdmin
+
+For this project, **DBeaver** was used as the primary database management client to handle:
+
+* Initial exploratory data analysis (EDA)
+* Empirical code validation of core transformation rules
+* Manual inspection of data state layout changes inside staging and analytics schemas
+* Integrity testing of generated metric views
+
+**Example Query Execution:**
+
+```sql
+SELECT *
+FROM analytics.view_escolas_por_uf_dependencia
+ORDER BY quantidade_escolas DESC;
+```
 
 ---
 
-## 4. How to Run the Project
+## 5. How to Run
 
 ### Prerequisites
 
-* Python 3.10 or higher
-* Active PostgreSQL instance (Neon, Supabase, or local Docker container)
-* Stable internet access to stream source files
+* Python 3.10+
+* Active PostgreSQL instance (Neon, Supabase, or local Docker)
+* Stable internet access
 
-### 1. Clone the repository and enter the directory
+### 1. Clone the Repository and Enter the Directory
 
 ```bash
 git clone <repository-url>
 cd school-census-analytics-platform
-
 ```
 
-### 2. Configure environment variables
+### 2. Configure Environment Variables
 
-Create a `.env` file in the project root with your database connection parameters:
+Create an environment file named `.env` in the root directory of the project. Fill it with the exact configuration block below:
 
 ```env
-DATABASE_URL=postgresql://user:password@host:5432/database
-DATASET_URL=[https://download.inep.gov.br/dados_abertos/microdados_censo_escolar](https://download.inep.gov.br/dados_abertos/microdados_censo_escolar)
+DATASET_URL=[https://download.inep.gov.br/dados_abertos](https://download.inep.gov.br/dados_abertos)
 DATASET_NAME=microdados_censo_escolar
 DATA_FILE_DIR=dados
-DATABASE_STAGING_SCHEMA=staging
-DATABASE_ANALYTICS_SCHEMA=analytics
+SELECTED_FILE_KEYWORDS=TABELA_ESCOLA,tabela_turma,Tabela_Matricula,Tabela_Docente_2025
 
+DATABASE_URL=postgresql://channel_binding=require
 ```
 
-### 3. Execution via Makefile Commands
+> ⚠️ **Security Notice:** For security compliance and to prevent unauthorized access to the database cluster, the full `DATABASE_URL` credentials string was **sent exclusively via email** alongside the submission link for this project. Please retrieve the connection string from your inbox and replace the placeholder above.
 
-The project includes a `Makefile` to simplify environmental setup and pipeline orchestration. Below is the reference guide for all available shortcuts:
+### 3. Install Dependencies
 
-* **Install Environment Dependencies:**
-Creates a virtual environment and installs all required Python packages and drivers.
 ```bash
 make install
-
 ```
 
+### 4. Execute the One-Shot Pipeline
 
-* **Run the Pipeline (Standard Batch Ingestion):**
-Triggers the one-shot extraction, staging load, and analytical modeling workflow. You must pass the target execution year as an argument:
+To execute the download, extraction, load, and SQL transform phases for a specific year:
+
 ```bash
 make run YEAR=2025
-
 ```
 
+To purge stale database schemas and force a clean, from-scratch run:
 
-* **Force Database Reset Run:**
-Purges all existing tables and active schemas inside the target database before executing a clean ingestion. Highly useful for resolving free-tier storage alerts or deploying manual DDL schema changes:
 ```bash
 make run YEAR=2025 RESET_DB=true
-
 ```
 
+### 5. Clean Filesystem (Optional Shortcut)
 
-* **Run Code Linters and Formatters (Optional):**
-Ensures code quality and standardized indentation across Python scripts:
-```bash
-make lint
-
-```
-
-
-* **Clean Local Filesystem (Optional):**
-Removes temporary landing data caches, local logs, and python bytecode objects:
+* **Clean Filesystem:** Wipes temporary landing caches, log traces, and Python caching footprints:
 ```bash
 make clean
-
 ```
 
 
 
----
+### Expected Output
 
-## 5. Troubleshooting & Operational Support
+Following a successful operational execution, the relational database engine targets will contain the following structured schema blocks, fully materialized and ready for consumption:
 
-### SSL Handshake Failures During Download
+```text
+staging/
+├── escola (Table)
+├── docente (Table)
+├── turma (Table)
+└── matricula (Table)
 
-* **Symptom:** Network request exceptions thrown when handshaking with INEP servers due to upstream security certificate issues.
-* **Resolution:** The download client implements an automated fallback mechanism. If a secure connection fails, the script catches the exception, logs a warning, and re-triggers the stream with strict validation disabled (`verify=False`) to ensure execution continuity.
+analytics/
+├── dim_escola (Table)
+├── dim_docente (Table)
+├── dim_turma (Table)
+├── dim_dependencia_administrativa (Table)
+├── dim_localizacao (Table)
+├── fato_matricula (Table)
+│
+├── view_escolas_por_uf_dependencia (View)
+├── view_escolas_por_uf_localizacao (View)
+├── view_percentual_escolas_infraestrutura (View)
+├── view_turmas_por_escola_uf (View)
+├── view_matriculas_por_uf_dependencia (View)
+└── view_razao_alunos_por_turma (View)
+```
 
-### Storage Caps Reached (`DiskFull` / Size Limit Exceeded)
-
-* **Symptom:** Database transactions error out when testing against cloud free tiers (like Neon's storage limits).
-* **Resolution:** Limit execution to the subset scope suggested by the challenge rules (focusing on Schools and Classes within specific boundaries) and ensure you use the `RESET_DB=true` flag to drop residual historical testing schemas.
-
-### Character Encoding Failures
-
-* **Symptom:** Strings appear broken or cause database input exceptions during staging insertion.
-* **Resolution:** The underlying ingestion layer enforces strict `Latin-1` decoding parameters during filesystem data piping, standardizing text inputs to `UTF-8` on database commit. Ensure all supplementary extensions default to `encoding="latin1"` when testing modules in isolation.
-
----
-
-## 6. Architecture Evolution: Scaling to Production (AWS Cloud)
-
-While the current batch solution fulfills the local script requirements, scaling this architecture to an enterprise-grade Big Data platform would leverage the following cloud data roadmap on AWS:
-
-1. **Near Real-Time Ingestion (CDC):** Replace scheduled manual file downloads with log-based Change Data Capture (CDC) utilizing **AWS DMS** or **Debezium**, tracking transactional database write-ahead logs to eliminate application-tier overhead.
-2. **Modern Data Lakehouse (S3 Medallion Architecture):**
-* **Bronze:** Append-only storage of the raw extracted data files on AWS S3 in their native layout.
-* **Silver:** Distributed data processing via PySpark (AWS Glue or EMR) dedicated to encoding standardization, schema validation, and rigorous **record deduplication**, saving outputs in compressed columnar formats (Apache Parquet / Delta Lake).
-* **Gold:** Consolidate the Fact and Dimension tables within the S3 Gold layer, using **Amazon Athena** as a serverless query engine to expose data to BI platforms like Metabase.
-
-
-3. **Data Governance & Granular Security (ABAC):** Implement **AWS Lake Formation** to enforce Attribute-Based Access Control policies. This enables column-level masking and row-level filtering, dynamically obscuring sensitive student or teacher identifiers based on the explicit security tags of the consuming employee or dashboard.
+These relational elements can be extracted, joined, or monitored directly through any standard Postgres-compatible client connection block.
 
 ---
 
-## 7. Project Development and AI Usage Statement
+## 6. Troubleshooting
 
-This pipeline was built following an incremental, iterative approach. The code was developed block by block, employing Generative AI (ChatGPT) as a technical co-pilot to eliminate boilerplate friction, speed up repetitive tasks, and evaluate modeling trade-offs—mimicking a modern day-to-day data engineering workflow. Crucially, **human engineering oversight drove all final design, testing, and system verification decisions**.
+### SSL Download Errors
 
-### 7.1 Automated Workstreams and Contributions
+* **Symptom:** Outbound network connection blocks during download handshakes due to certificate authentication issues on the INEP host servers.
+* **Resolution:** The extraction client embeds an automatic exception handling routine. If an SSL handshake failure is caught, it flags a warning log and immediately retries the stream with validation disabled (`verify=False`).
 
-* **Metadata Schema Mapping:** Accelerating the creation of the structured configuration JSON files that map INEP's spreadsheet-based data dictionaries into valid database targets.
-* **Extraction & Path Traversal Logic:** Building functions to parse nested, variable folder layouts inside compressed ZIP objects for selective extraction.
-* **Text Processing & Cleaning:** Generating regular expressions (Regex) to handle string sanitization and convert legacy source headers into clean `snake_case`.
-* **SQL Generation:** Drafting initial parameterized SQL templates and designing analytical views to map challenge metrics.
-* **Documentation:** Scaffolding the structural foundation of docstrings and the README blueprint.
+### Database Storage Limits
 
-### 7.2 Core Successes and Efficiency Gains
+* **Symptom:** Transactions are rolled back with errors such as `DiskFull` or database size quotas exceeded (common on free cloud computing database tiers like Neon).
+* **Resolution:** Scale down processing boundaries to the narrow geographic regions required by the MVP test scope and ensure execution runs pass the reset parameter to flush old tests:
+```bash
+make run YEAR=2025 RESET_DB=true
+```
 
-* **Velocity Gains:** Significantly lowered the time spent writing boilerplate utility logic, handling string mutations, and constructing complex Regex patterns. This freed up engineering bandwidth to focus on schema design and data validity.
-* **Design Brainstorming:** Provided an efficient technical sounding board to quickly weigh storage layer alternatives and compare key modeling choices.
 
-### 7.3 Overriding AI Errors: Critical Engineering Oversight
+---
 
-The co-pilot was prone to generating inaccuracies, code duplications, and patterns that conflicted with production-grade data engineering principles, requiring explicit manual overrides:
+## 7. Known Limitations & Scope Discrepancies
 
-* **Correcting Layout Hallucinations:** The AI frequently suggested column names and attributes that simply did not exist in the actual INEP files or data dictionaries. These fields were caught via manual layout checks and stripped out from mapping configurations.
-* **Replacing Inefficient Ingestion Patterns:** The AI initially pushed for heavy use of Pandas loops to ingest data into PostgreSQL. Recognizing the clear performance bottleneck on medium-to-large datasets, I refactored the pipeline to use Python’s low-level `psycopg2` API combined with the native database `copy_expert` command, cutting ingestion times to seconds.
-* **Fixing Edge-Case Parsing Failures:** Early regex scripts and folder path-finding helpers failed when processing complex naming patterns or deep directory structures, yielding empty file lists. These bugs were isolated via test execution logs and corrected manually.
-* **Refactoring Redundant Implementations:** The AI tended to duplicate tasks across files, such as initializing database connections inside separate modules. I intervened to enforce the **DRY (Don't Repeat Yourself)** principle, decoupling connection rules into a single centralized `database.py` script.
+* **Single-Year Runtime Blocks:** Each individual pipeline execution handles one specific target reference year at a time.
+* **Data Quality Scope:** Data quality checking and schema constraint enforcements were kept lightweight to fit the boundaries of a rapid MVP challenge scope.
+* **Schema Drift (2025 vs. Prior Years):** Development, testing, and mapping configurations were restricted strictly to the 2025 data schema. During testing, clear structural changes and column layout modifications were observed between the 2025 data files and prior historical releases. Running the pipeline for years prior to 2025 will require updates to the `analytics_table_mappings.json` metadata rules.
+* **Staging Schema Typing (`TEXT` Abstraction):** Columns inside the staging layer are intentionally ingested as generic `TEXT` values to guarantee schema flexibility and protect the pipeline from breaking when source fields change shapes unexpectedly. In a production state, this should be optimized by applying **strict typing** (casting numeric indicators to `INT`/`NUMERIC` and flag tags to `BOOLEAN`) to reduce the relational storage footprint and optimize index scanning performance.
+* **Full-Overwrite Reload Strategy:** While the current pipeline safely guarantees zero data duplication by dropping and recreating all relevant records for the target year on each execution, this overwrite model creates unnecessary network and database overhead. An ideal optimization would be transitioning toward a **strictly incremental execution model**, computing delta changes via metadata markers (e.g., `last_modified` fields) to ingest and transform only records that have been modified or added since the previous run.
+
+---
+
+## 8. Conceptual Design Answers
+
+As per the requirements of Section 7 of the technical case, below are the architectural designs for scaling, deduplication, and stakeholder enablement.
+
+### Q5: Daily Data Updates Design
+
+To transition this one-shot pipeline into a production-grade automated daily system, I would use an orchestrator alongside cloud native tools:
+
+```text
+[Cron / Event Trigger] ──► [Apache Airflow DAG] ──► [AWS Glue Python Shell] ──► [PostgreSQL]
+```
+
+1. **Orchestration Tooling:** Use **Apache Airflow** or **Prefect** to manage the pipeline dependencies. A daily DAG would run at off-peak hours (e.g., 2:00 AM) to pull incremental changes.
+2. **Compute Transition:** Wrap the current script inside an execution task such as an **AWS Glue Python Shell** job or a containerized instance running on **AWS ECS Fargate**.
+3. **API-Driven Ingestion:** Since INEP data releases are typically annual, a true daily process for an enterprise system implies integrating an internal operational source database. The orchestrator would request data via a REST API or execute an optimized delta query against upstream database tables using updated fields like `updated_at > {{ ds }}`.
+
+### Q6: Data Deduplication Strategy
+
+To maintain an idempotent pipeline where re-running the system does not double-count metrics, I would implement a **two-phase deduplication layer** at the database level:
+
+```text
+[Raw Landing File] ──► [Staging Table] ──► [Upsert Join (MERGE)] ──► [Analytics Target]
+                                                     ▲
+                                        (Drop Duplicates via window functions)
+```
+
+1. **Staging Isolation (Transient Ingestion):** The high-performance `COPY` command would always target a clean staging table. Inside staging, duplicate raw rows are isolated using SQL window functions before processing:
+```sql
+WITH ranked_data AS (
+    SELECT *, ROW_NUMBER() OVER(PARTITION BY co_entidade ORDER BY ingestion_timestamp DESC) as rn
+    FROM staging.escola
+)
+SELECT * FROM ranked_data WHERE rn = 1;
+```
+
+
+2. **Idempotent Upsert (MERGE Pattern):** When writing into final dimension and fact models, native PostgreSQL `INSERT ... ON CONFLICT` clauses are executed:
+```sql
+INSERT INTO analytics.dim_escola (co_entidade, nu_ano, no_escola)
+SELECT co_entidade, nu_ano, no_escola FROM staging.clean_escola
+ON CONFLICT (co_entidade) 
+DO UPDATE SET 
+    no_escola = EXCLUDED.no_escola,
+    updated_at = NOW();
+```
+
+
+This ensures that even if identical files are processed multiple times, records are safely updated rather than duplicated.
+
+### Q7: Metabase Stakeholder Enablement
+
+To empower business users to query data reliably without needing deep SQL skills or risking metric drift, I would design a semantic model layer:
+
+```text
+[Analytics Star Schema Engine] ──► [Metabase Semantic Views] ──► [Business Users Self-Service]
+```
+
+1. **Abstract Complexity via Views:** I hide complex multi-table joins behind flattened semantic database views (e.g., the final `analytics.view_*` aggregates developed in this challenge). Users see clear columns (e.g., `Has Internet`, `Total Classrooms`) rather than needing to manually compute counts or map bitmasks.
+2. **Metabase Metadata Caching & Labeling:** Inside Metabase, I would configure custom column aliases, explicit tooltips, and category definitions (e.g., marking `co_uf` explicitly as a State entity).
+3. **Pre-Baked Questions & Model Definitions:** Use Metabase's official **Models** feature to pre-join the Fact tables to the appropriate Dimensions. This creates a standard interface for drag-and-drop filtering, ensuring non-technical stakeholders always query the canonical, verified metric logic.
+
+---
+
+## 9. Architecture Evolution: Scaling to Production
+
+Transitioning this standalone local script into an enterprise Big Data platform would focus on migrating the compute and ingestion paths to the AWS Cloud infrastructure.
+
+### 1. Near Real-Time Ingestion (CDC)
+
+Future revisions would replace manual file scraping and automated site downloads with streaming log-based Change Data Capture (CDC). Utilizing tools like **AWS DMS** or **Debezium** to track write-ahead logs of operational databases eliminates heavy network scraping and completely removes resource draw from core operational apps.
+
+### 2. Cloud Lakehouse Integration (AWS S3 Medallion Architecture)
+
+Data storage would shift from local disk space to a flexible cloud architecture using an **AWS S3 Medallion Data Lake Pattern**:
+
+* **Bronze Layer:** Acts as an append-only, immutable storage layer capturing source records exactly as received, building a permanent data auditing track.
+* **Silver Layer:** Processes and cleans raw data using distributed Spark compute layers (AWS Glue or Amazon EMR). Tasks include character normalization, strict typing alignment, and complex **record deduplication**, converting outputs into optimized columnar formats like Apache Parquet or Delta Lake.
+* **Gold Layer:** Builds the final, business-ready Star Schema. Data models inside the Gold layer are queried serverless using **Amazon Athena**, providing quick, low-latency access for business intelligence engines like Metabase.
+
+### 3. Data Governance & Security
+
+Production environments would introduce centralized access tracking frameworks using **AWS Lake Formation** to enforce **ABAC (Attribute-Based Access Control)** patterns. This configuration enables granular row-level data filtering and column-level masking, ensuring that sensitive student profiles or teacher attributes are automatically hidden based on the security level of the user or connected dashboard.
+
+---
+
+## 10. AI Usage Statement
+
+Generative AI (primarily ChatGPT) was used as a technical co-pilot throughout the project. The development process remained entirely iterative and engineering-driven: code was built block by block, using AI to eliminate boilerplate friction, speed up repetitive coding, and evaluate modeling trade-offs—mimicking a modern day-to-day data engineering workflow. Crucially, **human engineering oversight drove all final architectural decisions, testing validation, and system corrections**.
+
+### Where AI Was Used
+
+#### Data Modeling
+
+* Crafting column configuration mapping structures.
+* Accelerating large-scale translation arrays for headers.
+* Brainstorming dimension design approaches and tracking surrogate key alternatives.
+
+#### Architecture
+
+* Defining modular layout boundaries for layers (`raw`, `landing`, `staging`, `analytics`).
+* Designing table-specific data lifecycle tracks using **timestamp-driven version control in the landing layer** while treating raw ZIP blocks as ephemeral.
+
+#### Ingestion Logic
+
+* Scaffolding file navigation methods inside compressed ZIP objects.
+* Handling lower-level file manipulation scripts and character encoding setup.
+
+#### Transformation Logic
+
+* Drafting initial structural query blocks for SQL templates.
+* Constructing regular expression filters and parsing case normalization methods (`snake_case`).
+
+#### Debugging & Support
+
+* Isolating root causes for network SSL handshakes.
+* Interpreting Postgres transaction failures and optimizing database storage thresholds.
+
+#### Documentation
+
+* Drafting function docstrings, README structural blocks, and compiling core technical design summaries.
+
+### What Worked Well
+
+* **Velocity Acceleration:** Drastically cut down the time required to write boilerplate utilities, manage tedious string mutations, and construct complex regular expressions, allowing more engineering hours to be spent on data quality and system design.
+* **Architectural Brainstorming:** Provided an agile, responsive utility to quickly compare alternative technical approaches regarding data modeling limits and ingestion alternatives.
+* **Consistent Documentation:** Standardized explanations, structured coherent code comments, and systematically recorded design choices across the code base.
+
+### Where AI Was Wrong and How It Was Corrected
+
+#### 1. Overriding Layout Hallucinations
+
+* **The Issue:** The AI frequently suggested column names and attributes that simply did not exist in the actual INEP files or data dictionaries.
+* **The Correction:** Discrepancies were identified by cross-checking layouts against documentation before writing DDL constraints, and the fictional fields were removed manually.
+
+#### 2. Replacing Inefficient Ingestion Patterns
+
+* **The Issue:** Initial AI suggestions relied heavily on iterative Pandas structures to handle PostgreSQL uploads. Performance testing exposed critical latency and memory bottlenecks on medium-to-large files.
+* **The Correction:** Replaced the approach with a high-throughput streaming architecture utilizing `psycopg2` and native database `COPY` functions, slashing load times down to seconds.
+
+#### 3. Handling Regex Edge Case Failures
+
+* **The Issue:** Generated regular expression strings failed to handle complex variations in file paths and school name metadata, dropping valid entries during processing.
+* **The Correction:** Gaps were caught through validation testing against actual datasets; the expressions were manually rewritten with precise string boundary conditions.
+
+#### 4. Correcting Directory Traversal Logic
+
+* **The Issue:** Early code generated to locate target items within nested ZIP directories ran into structural errors, failing to navigate the files correctly and returning empty arrays.
+* **The Correction:** Inspected the actual directory configurations using execution logs, manually rewrote the search script parameters, and mapped the navigation path to the proper directories.
+
+#### 5. Eradicating Code Duplication
+
+* **The Issue:** The AI repeatedly generated duplicated boilerplate code for database connections and queries across different functional scripts.
+* **The Correction:** Intervened to enforce the **DRY (Don't Repeat Yourself)** principle, refactoring the platform's layout to isolate shared infrastructure rules inside dedicated reusable modules like `database.py`, `sql_render.py`, and `utils.py`.
