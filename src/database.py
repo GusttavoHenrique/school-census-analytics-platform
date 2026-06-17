@@ -19,3 +19,18 @@ def execute_sql(
 ) -> None:
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
+
+
+def reset_pipeline_database() -> None:
+    LOGGER.warning("Resetting pipeline database schemas due to storage limit")
+    
+    engine = get_engine()
+    execute_sql(
+        engine=engine,
+        sql="""
+        DROP SCHEMA IF EXISTS staging CASCADE;
+        DROP SCHEMA IF EXISTS analytics CASCADE;
+        """,
+    )
+
+    LOGGER.info("Database reset completed successfully.")

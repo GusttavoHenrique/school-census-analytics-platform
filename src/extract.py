@@ -111,7 +111,7 @@ def download_census_zip(year: int) -> Path:
     )
 
 
-def should_extract_file(target_path: Path, filename: str) -> bool:
+def should_extract_file(filename: str) -> bool:
     """
     Checks whether the file should be extracted.
     """
@@ -187,10 +187,7 @@ def extract_selected_csv_files(
                 / f"{table_name}_{ingestion_timestamp}.csv"
             )
 
-            if not should_extract_file(
-                target_path,
-                filename,
-            ):
+            if not should_extract_file(filename):
                 continue
 
             target_path.parent.mkdir(
