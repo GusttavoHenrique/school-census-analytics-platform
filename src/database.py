@@ -1,7 +1,9 @@
+from pathlib import Path
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-from src.config import DATABASE_URL, LOGGER
+from src.config import DATABASE_URL, LOGGER, SQL_DIR
 
 
 def get_engine() -> Engine:
@@ -46,6 +48,36 @@ def execute_sql(
 
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
+
+
+def create_metrics_views() -> None:
+    """
+    Create analytical metric views.
+
+    Executes the SQL script responsible for creating all
+    reporting views required by the challenge.
+
+    The SQL file is expected to be available under the
+    project's SQL directory as:
+
+    - 04_create_metrics_views.sql
+    """
+
+    LOGGER.info("Creating analytical metric views.")
+
+    engine = get_engine()
+
+    sql = (
+        SQL_DIR
+        / "04_create_metrics_views.sql"
+    ).read_text(encoding="utf-8")
+
+    execute_sql(
+        engine=engine,
+        sql=sql,
+    )
+
+    LOGGER.info("Analytical metric views created successfully.")
 
 
 def reset_pipeline_database() -> None:

@@ -5,7 +5,7 @@ from src.config import LOGGER
 from src.extract import extract_census_data
 from src.load import load_landing_files
 from src.transform import run_transformations
-from src.database import reset_pipeline_database
+from src.database import reset_pipeline_database, create_metrics_views
 
 
 def main() -> None:
@@ -56,7 +56,6 @@ def main() -> None:
 
         LOGGER.info("Starting School Census pipeline for year %s.", args.year)
 
-
         if args.reset_db:
             LOGGER.warning("Resetting database schemas before execution.")
             reset_pipeline_database()
@@ -81,6 +80,10 @@ def main() -> None:
         )
 
         LOGGER.info("Transformations completed successfully for year %s.", args.year)
+
+        create_metrics_views()
+
+        LOGGER.info("Metrics views created successfully.")
 
         LOGGER.info("Pipeline finished successfully.")
 
