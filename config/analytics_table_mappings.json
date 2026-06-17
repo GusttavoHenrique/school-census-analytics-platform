@@ -22,17 +22,13 @@
     "target_table": "dim_turma",
     "columns": {
       "nu_ano_censo": "ano_censo",
-      "co_turma": "id_turma",
-      "co_entidade": "id_escola",
-      "tp_etapa_ensino": "id_etapa_ensino",
-      "qt_mat_bas": "quantidade_matriculas"
+      "co_entidade": "id_escola"
     }
   },
   "docente": {
     "target_table": "dim_docente",
     "columns": {
       "nu_ano_censo": "ano_censo",
-      "co_pessoa_fisica": "id_docente",
       "co_entidade": "id_escola"
     }
   },
@@ -40,9 +36,7 @@
     "target_table": "fato_matricula",
     "columns": {
       "nu_ano_censo": "ano_censo",
-      "co_matricula": "id_matricula",
-      "co_entidade": "id_escola",
-      "co_turma": "id_turma"
+      "co_entidade": "id_escola"
     }
   }
 }

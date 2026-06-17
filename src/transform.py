@@ -63,7 +63,7 @@ def transform_table(
         WHERE 1 = 0;
 
         DELETE FROM "{target_schema}"."{target_table}"
-        WHERE census_year = :year;
+        WHERE ano_censo = :year;
 
         INSERT INTO "{target_schema}"."{target_table}" (
             {insert_columns}
@@ -73,7 +73,7 @@ def transform_table(
         FROM "{source_schema}"."{source_table}"
         WHERE nu_ano_censo = :year;
     """
-
+    
     execute_sql(
         engine=engine,
         sql=sql,

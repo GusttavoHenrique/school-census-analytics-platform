@@ -28,20 +28,20 @@ def main() -> None:
 
         LOGGER.info("Starting School Census pipeline for year %s.", args.year)
 
-        extracted_files = extract_census_data(
-            year=args.year,
-        )
+        # extracted_files = extract_census_data(
+        #     year=args.year,
+        # )
 
-        LOGGER.info("Extraction completed successfully. Extracted files: %s", len(extracted_files))
+        # LOGGER.info("Extraction completed successfully. Extracted files: %s", len(extracted_files))
 
-        for file_path in extracted_files:
-            LOGGER.info("Extracted file: %s", file_path)
+        # for file_path in extracted_files:
+        #     LOGGER.info("Extracted file: %s", file_path)
 
-        load_landing_files(
-            year=args.year,
-        )
+        # load_landing_files(
+        #     year=args.year,
+        # )
 
-        LOGGER.info("Load completed successfully for year %s.", args.year)
+        # LOGGER.info("Load completed successfully for year %s.", args.year)
 
         run_transformations(
             year=args.year,
