@@ -1,6 +1,7 @@
 {
   "escola": {
     "target_table": "dim_escola",
+    "year": "nu_ano_censo",
     "columns": {
       "nu_ano_censo": "ano_censo",
       "co_entidade": "id_escola",
@@ -20,6 +21,7 @@
   },
   "turma": {
     "target_table": "dim_turma",
+    "year": "nu_ano_censo",
     "columns": {
       "nu_ano_censo": "ano_censo",
       "co_entidade": "id_escola"
@@ -27,6 +29,7 @@
   },
   "docente": {
     "target_table": "dim_docente",
+    "year": "nu_ano_censo",
     "columns": {
       "nu_ano_censo": "ano_censo",
       "co_entidade": "id_escola"
@@ -34,6 +37,7 @@
   },
   "matricula": {
     "target_table": "fato_matricula",
+    "year": "nu_ano_censo",
     "columns": {
       "nu_ano_censo": "ano_censo",
       "co_entidade": "id_escola"
