@@ -5,6 +5,7 @@ from src.config import LOGGER
 from src.extract import extract_census_data
 from src.load import load_landing_files
 from src.transform import run_transformations
+from src.database import reset_pipeline_database
 
 
 def main() -> None:
@@ -24,24 +25,35 @@ def main() -> None:
             help="School census year",
         )
 
+        parser.add_argument(
+            "--reset-db",
+            action="store_true",
+            help="Reset database schemas before execution",
+        )
+
         args = parser.parse_args()
 
         LOGGER.info("Starting School Census pipeline for year %s.", args.year)
 
-        # extracted_files = extract_census_data(
-        #     year=args.year,
-        # )
 
-        # LOGGER.info("Extraction completed successfully. Extracted files: %s", len(extracted_files))
+        if args.reset_db:
+            LOGGER.warning("Resetting database schemas before execution.")
+            reset_pipeline_database()
 
-        # for file_path in extracted_files:
-        #     LOGGER.info("Extracted file: %s", file_path)
+        extracted_files = extract_census_data(
+            year=args.year,
+        )
 
-        # load_landing_files(
-        #     year=args.year,
-        # )
+        LOGGER.info("Extraction completed successfully. Extracted files: %s", len(extracted_files))
 
-        # LOGGER.info("Load completed successfully for year %s.", args.year)
+        for file_path in extracted_files:
+            LOGGER.info("Extracted file: %s", file_path)
+
+        load_landing_files(
+            year=args.year,
+        )
+
+        LOGGER.info("Load completed successfully for year %s.", args.year)
 
         run_transformations(
             year=args.year,
