@@ -180,7 +180,7 @@ An intentional architectural choice was made to structure the project as a mini 
 
 Acts as the physical ingestion point for the original multi-gigabyte compressed `.zip` matrix extracted from INEP.
 
-* **Design Decision & Data Lifecycle:** Unlike transient systems that delete temporary network components dynamically, the pipeline explicitly preserves the downloaded ZIP container under `data/raw/` to avoid unnecessary network overhead and re-downloads during local code debugging. **The files are kept structurally intact until a subsequent execution triggers a full replacement (overwrite) with a newer ZIP package.**
+* **Design Decision & Data Lifecycle:** Unlike transient systems that delete temporary network components dynamically, the pipeline explicitly preserves the downloaded ZIP container under `data/raw/` to avoid unnecessary network overhead and re-downloads during local code debugging. **The files are kept structurally intact on disk until a subsequent execution triggers a full replacement (overwrite) with a newer ZIP package.**
 
 #### Landing Layer
 
@@ -245,9 +245,9 @@ These views encapsulate complex multi-table metrics aggregation logic and provid
 
 Once the pipeline execution finishes, all analytical tables and views become immediately available in the PostgreSQL database. Any standard SQL client can be used to explore the results, including:
 
-* DBeaver
-* DataGrip
-* pgAdmin
+* DBeaver / DataGrip / pgAdmin
+* Metabase / Apache Superset
+* Power BI / Tableau
 
 For this project, **DBeaver** was used as the primary database management client to handle:
 
@@ -384,92 +384,45 @@ make run YEAR=2025 RESET_DB=true
 
 ---
 
-## 8. Conceptual Design Answers
+## 8. Enterprise Target Architecture: Scalability, Idempotence, and Governance
 
-As per the requirements of Section 7 of the technical case, below are the architectural designs for scaling, deduplication, and stakeholder enablement.
+To address the limitations of the standalone local script and scale the platform into an enterprise Big Data ecosystem, the following destination design based on the modern **Data Lakehouse** paradigm is proposed. This architecture directly answers the conceptual requirements for orchestration, data deduplication, and stakeholder delivery.
 
-### Q5: Daily Data Updates Design
+### 8.1 Orchestration & Distributed Compute Ingestion
 
-To transition this one-shot pipeline into a production-grade automated daily system, I would use an orchestrator alongside cloud native tools:
+* **Continuous Ingestion Workflow:** The localized orchestration layer will be migrated to an enterprise scheduler like **Apache Airflow**. A daily or event-triggered DAG will deploy sensors to automatically monitor the INEP portal repository for updates. When a new ZIP package is identified, it will initiate the data ingestion process automatically.
+* **Massive Distributed Compute:** Python scripts will be transferred into auto-scaling **Databricks Jobs** executing distributed Spark clusters. This ensures highly performant extraction, parsing, and heavy data mapping tasks over high-volume multi-gigabyte structures without infrastructure choking.
 
-```text
-[Cron / Event Trigger] ──► [Apache Airflow DAG] ──► [AWS Glue Python Shell] ──► [PostgreSQL]
-```
+### 8.2 Storage Layer and Idempotent Modeling (Lakehouse Paradigm)
 
-1. **Orchestration Tooling:** Use **Apache Airflow** or **Prefect** to manage the pipeline dependencies. A daily DAG would run at off-peak hours (e.g., 2:00 AM) to pull incremental changes.
-2. **Compute Transition:** Wrap the current script inside an execution task such as an **AWS Glue Python Shell** job or a containerized instance running on **AWS ECS Fargate**.
-3. **API-Driven Ingestion:** Since INEP data releases are typically annual, a true daily process for an enterprise system implies integrating an internal operational source database. The orchestrator would request data via a REST API or execute an optimized delta query against upstream database tables using updated fields like `updated_at > {{ ds }}`.
+Physical disk storage will shift to cloud objects utilizing table formats like **Delta Lake**, separating data into three logical tiers:
 
-### Q6: Data Deduplication Strategy
-
-To maintain an idempotent pipeline where re-running the system does not double-count metrics, I would implement a **two-phase deduplication layer** at the database level:
-
-```text
-[Raw Landing File] ──► [Staging Table] ──► [Upsert Join (MERGE)] ──► [Analytics Target]
-                                                     ▲
-                                        (Drop Duplicates via window functions)
-```
-
-1. **Staging Isolation (Transient Ingestion):** The high-performance `COPY` command would always target a clean staging table. Inside staging, duplicate raw rows are isolated using SQL window functions before processing:
-```sql
-WITH ranked_data AS (
-    SELECT *, ROW_NUMBER() OVER(PARTITION BY co_entidade ORDER BY ingestion_timestamp DESC) as rn
-    FROM staging.escola
-)
-SELECT * FROM ranked_data WHERE rn = 1;
-```
+1. **Raw Layer (Landing/Immutable Zone):** Implements an append-only, immutable structure capturing raw ZIP/CSV data streams exactly as received. This acts as a permanent auditing track ensuring absolute data lineage tracing and system replayability.
+2. **Refined Layer (Silver/Trusted Zone):** Manages file cleanups, conversion of legacy encodings (`Latin-1` to `UTF-8`), and rigorous quality schema checks.
+* *Unified Taxonomy & Standardization:* Implements strict **schema enforcement to unifie all column name conventions** across years. This systematic mapping removes text ambiguities between dynamic layouts and eliminates terminological inconsistencies for business users.
+* *Data Quality & Deduplication:* Executes automated deduplication routines via window functions (`ROW_NUMBER() OVER(PARTITION BY... ORDER BY timestamp DESC)`) to completely isolate the most accurate record states before data reaches analytical targets.
 
 
-2. **Idempotent Upsert (MERGE Pattern):** When writing into final dimension and fact models, native PostgreSQL `INSERT ... ON CONFLICT` clauses are executed:
-```sql
-INSERT INTO analytics.dim_escola (co_entidade, nu_ano, no_escola)
-SELECT co_entidade, nu_ano, no_escola FROM staging.clean_escola
-ON CONFLICT (co_entidade) 
-DO UPDATE SET 
-    no_escola = EXCLUDED.no_escola,
-    updated_at = NOW();
-```
+3. **Analytics Layer (Gold/Serving Zone):** Hosts final business-ready dimensional structures modeled under a optimized **Star Schema (Facts & Dimensions)**.
+* *Historical Traceability & SCD:* Attribute mutations over time (such as school infrastructures or cadastral updates) are managed natively via **Slowly Changing Dimensions (SCD Type 2)**, utilizing Delta Lake's native *Time Travel* and historical audit properties.
+* *Idempotency via Atomic Merges:* Rather than relying on heavy full-table overwrites, table refreshes execute transactional **MERGE (UPSERT)** statements mapped strictly against explicit business keys. This guarantees that re-running identical workloads modifies modified records in-place instead of double-counting rows.
 
 
-This ensures that even if identical files are processed multiple times, records are safely updated rather than duplicated.
 
-### Q7: Metabase Stakeholder Enablement
+### 8.3 Data Democracy, Semantics, and Visualization
 
-To empower business users to query data reliably without needing deep SQL skills or risking metric drift, I would design a semantic model layer:
+* **Self-Service Analytics Readiness:** To shield non-technical business consumers from joining normalized fact clusters or encountering metric drift, the query experience relies on **Governed Tables and Views**. Multi-table star junctions are packaged behind flattened, clean semantics.
+* **Canonical Schema Documentation:** Analytical elements are complemented by explicit, embedded attribute descriptions synced directly to a centralized data catalog, allowing data analysts to instantly grasp column definitions without manual lookup loops.
+* **Unified Query Interfaces:** Serving and query dispatching will be decoupled via federated serverless query engines like **Trino** or **Amazon Athena**. These compute platforms query the S3 Gold data files directly without physical relocation, feeding downstream visualization dashboards (Metabase, Power BI, Apache Superset) through an abstract, audited gateway.
 
-```text
-[Analytics Star Schema Engine] ──► [Metabase Semantic Views] ──► [Business Users Self-Service]
-```
+### 8.4 Enterprise Security & Governance
 
-1. **Abstract Complexity via Views:** I hide complex multi-table joins behind flattened semantic database views (e.g., the final `analytics.view_*` aggregates developed in this challenge). Users see clear columns (e.g., `Has Internet`, `Total Classrooms`) rather than needing to manually compute counts or map bitmasks.
-2. **Metabase Metadata Caching & Labeling:** Inside Metabase, I would configure custom column aliases, explicit tooltips, and category definitions (e.g., marking `co_uf` explicitly as a State entity).
-3. **Pre-Baked Questions & Model Definitions:** Use Metabase's official **Models** feature to pre-join the Fact tables to the appropriate Dimensions. This creates a standard interface for drag-and-drop filtering, ensuring non-technical stakeholders always query the canonical, verified metric logic.
+* **Unified Data Cataloging:** Centralized data access monitoring, metadata lineage tracing, and auditing logs are fully enforced using an enterprise data governance controller like **Databricks Unity Catalog**.
+* **Attribute-Based Access Control (ABAC):** Security models implement an explicit **ABAC framework**. Access to sensitive datasets (student profiles, teacher records, specific enrollment categories) is managed dynamically by matching user role tags against active target table properties. This triggers runtime **Row-Level Security (RLS)** and dynamic **Column-Level Security (CLS)** masking layers, ensuring that a user only accesses rows matching their clearance attribute parameters (e.g., hiding private data from general analysts while exposing metrics per territory), achieving strict LGPD compliance.
 
 ---
 
-## 9. Architecture Evolution: Scaling to Production
-
-Transitioning this standalone local script into an enterprise Big Data platform would focus on migrating the compute and ingestion paths to the AWS Cloud infrastructure.
-
-### 1. Near Real-Time Ingestion (CDC)
-
-Future revisions would replace manual file scraping and automated site downloads with streaming log-based Change Data Capture (CDC). Utilizing tools like **AWS DMS** or **Debezium** to track write-ahead logs of operational databases eliminates heavy network scraping and completely removes resource draw from core operational apps.
-
-### 2. Cloud Lakehouse Integration (AWS S3 Medallion Architecture)
-
-Data storage would shift from local disk space to a flexible cloud architecture using an **AWS S3 Medallion Data Lake Pattern**:
-
-* **Bronze Layer:** Acts as an append-only, immutable storage layer capturing source records exactly as received, building a permanent data auditing track.
-* **Silver Layer:** Processes and cleans raw data using distributed Spark compute layers (AWS Glue or Amazon EMR). Tasks include character normalization, strict typing alignment, and complex **record deduplication**, converting outputs into optimized columnar formats like Apache Parquet or Delta Lake.
-* **Gold Layer:** Builds the final, business-ready Star Schema. Data models inside the Gold layer are queried serverless using **Amazon Athena**, providing quick, low-latency access for business intelligence engines like Metabase.
-
-### 3. Data Governance & Security
-
-Production environments would introduce centralized access tracking frameworks using **AWS Lake Formation** to enforce **ABAC (Attribute-Based Access Control)** patterns. This configuration enables granular row-level data filtering and column-level masking, ensuring that sensitive student profiles or teacher attributes are automatically hidden based on the security level of the user or connected dashboard.
-
----
-
-## 10. AI Usage Statement
+## 9. AI Usage Statement
 
 Generative AI (primarily ChatGPT) was used as a technical co-pilot throughout the project. The development process remained entirely iterative and engineering-driven: code was built block by block, using AI to eliminate boilerplate friction, speed up repetitive coding, and evaluate modeling trade-offs—mimicking a modern day-to-day data engineering workflow. Crucially, **human engineering oversight drove all final architectural decisions, testing validation, and system corrections**.
 
